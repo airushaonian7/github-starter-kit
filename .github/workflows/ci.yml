@@ -1,0 +1,53 @@
+# ============================================================
+# GitHub Actions 示例工作流 — github-starter-kit 模板
+# 用途：新项目复制本模板后，启用 CI 自动检查
+# 用法：
+#   1. 复制本文件到新项目：.github/workflows/ci.yml
+#   2. 按项目类型修改 "runs-on" 和检查命令
+# 说明：GitHub 会自动运行（无需手动配置服务器）
+# ============================================================
+
+name: CI 基础检查
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  basic-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 检查敏感信息（禁止 API Key / 密码明文入库）
+        run: |
+          if grep -rniE '(api[_-]?key|password|secret|token)\s*[:=]\s*["'"'"'][^"'"'"']{8,}' --include='*.js' --include='*.json' --include='*.env*' --include='*.py' --include='*.ts' .; then
+            echo "❌ 发现疑似敏感信息明文，请先移除再提交！"
+            exit 1
+          else
+            echo "✅ 未发现敏感信息明文"
+          fi
+
+      - name: 检查文件大小（防误提交大文件）
+        run: |
+          LARGE=$(find . -type f -size +10M -not -path './.git/*' | head -5)
+          if [ -n "$LARGE" ]; then
+            echo "❌ 发现大文件（>10MB），请确认是否误提交："
+            echo "$LARGE"
+            exit 1
+          else
+            echo "✅ 无大文件"
+          fi
+
+      - name: 检查 .gitignore 是否包含常见忽略项
+        run: |
+          for pat in node_modules .env .env.local *.log .DS_Store; do
+            if grep -q "^$pat$" .gitignore 2>/dev/null; then
+              echo "✅ .gitignore 包含 $pat"
+            else
+              echo "⚠️ .gitignore 未包含 $pat（建议加上）"
+            fi
+          done
